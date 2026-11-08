@@ -1,0 +1,173 @@
+﻿=== git rev-parse --show-toplevel ===
+C:/Users/user/Desktop/WorkPlace/Business/TradingAutomationStarter
+
+=== git branch --show-current ===
+master
+
+=== git rev-parse HEAD ===
+87b71d541af17c0e7ef0bc9d8bd3f7081f628f59
+
+=== git status --short ===
+ M src/trading_automation/cli.py
+?? .opencode/
+?? config/instruments.toml
+?? config/mcp-tools.json
+?? docs/MARKET_DATA_INTERFACE.md
+?? docs/MCP_INTEGRATION.md
+?? opencode.jsonc
+?? src/trading_automation/data/market_data/
+?? src/trading_automation/mcp/
+?? tests/fixtures/
+?? tests/test_cli_mcp.py
+?? tests/test_csv_market_data_adapter.py
+?? tests/test_market_data_completion.py
+?? tests/test_market_data_contract.py
+?? tests/test_market_data_validate.py
+?? tests/test_mcp_check.py
+?? tests/test_mcp_client.py
+?? tests/test_mcp_manifest.py
+?? tests/test_mcp_policy.py
+?? tests/test_opencode_effective_permissions.py
+?? tests/test_real_mcp_handshake.py
+?? tests/test_symbol_registry.py
+?? tests/test_tv_market_data_adapter.py
+
+=== git status --porcelain=v1 --untracked-files=all ===
+ M src/trading_automation/cli.py
+?? .opencode/agents/tv-mcp-diagnostic.md
+?? config/instruments.toml
+?? config/mcp-tools.json
+?? docs/MARKET_DATA_INTERFACE.md
+?? docs/MCP_INTEGRATION.md
+?? opencode.jsonc
+?? src/trading_automation/data/market_data/__init__.py
+?? src/trading_automation/data/market_data/completion.py
+?? src/trading_automation/data/market_data/contract.py
+?? src/trading_automation/data/market_data/csv_source.py
+?? src/trading_automation/data/market_data/symbols.py
+?? src/trading_automation/data/market_data/tv_source.py
+?? src/trading_automation/data/market_data/validate.py
+?? src/trading_automation/mcp/__init__.py
+?? src/trading_automation/mcp/check.py
+?? src/trading_automation/mcp/client.py
+?? src/trading_automation/mcp/config.py
+?? src/trading_automation/mcp/errors.py
+?? src/trading_automation/mcp/integrity.py
+?? src/trading_automation/mcp/manifest.py
+?? tests/fixtures/fake_mcp_server.py
+?? tests/fixtures/fake_tv_transport.py
+?? tests/test_cli_mcp.py
+?? tests/test_csv_market_data_adapter.py
+?? tests/test_market_data_completion.py
+?? tests/test_market_data_contract.py
+?? tests/test_market_data_validate.py
+?? tests/test_mcp_check.py
+?? tests/test_mcp_client.py
+?? tests/test_mcp_manifest.py
+?? tests/test_mcp_policy.py
+?? tests/test_opencode_effective_permissions.py
+?? tests/test_real_mcp_handshake.py
+?? tests/test_symbol_registry.py
+?? tests/test_tv_market_data_adapter.py
+
+=== git diff --name-status ===
+M	src/trading_automation/cli.py
+
+=== git diff -- src/trading_automation/cli.py ===
+diff --git a/src/trading_automation/cli.py b/src/trading_automation/cli.py
+index d912141..228e116 100644
+--- a/src/trading_automation/cli.py
++++ b/src/trading_automation/cli.py
+@@ -12,6 +12,13 @@ from trading_automation.data.csv_validation import (
+     format_validation_report,
+     validate_csv,
+ )
++from trading_automation.mcp.check import (
++    EXIT_CHART_PRECONDITION,
++    EXIT_MARKET_DATA_VALIDATION,
++    EXIT_MCP_POLICY,
++    EXIT_MCP_SOURCE_UNAVAILABLE,
++    run_check,
++)
+ from trading_automation.persistence.sqlite_store import SQLiteStore
+ 
+ EXIT_SUCCESS = 0
+@@ -60,12 +67,39 @@ def build_parser() -> argparse.ArgumentParser:
+         action="store_true",
+         help="print the import report as JSON",
+     )
++
++    check_parser = subparsers.add_parser(
++        "check-mcp",
++        help="verify the pinned TradingView MCP catalog and permission policy",
++    )
++    check_parser.add_argument(
++        "--health",
++        action="store_true",
++        help=(
++            "also call tv_health_check; exits 20 when TradingView/CDP is "
++            "unavailable"
++        ),
++    )
++    check_parser.add_argument(
++        "--json",
++        action="store_true",
++        help="print the check report as JSON",
++    )
+     return parser
+ 
+ 
+ def main(argv: list[str] | None = None) -> int:
+     args = build_parser().parse_args(argv)
+     root = Path.cwd()
++
++    if args.command == "check-mcp":
++        report = run_check(root, health=args.health)
++        if args.json:
++            print(report.to_json())
++        else:
++            print(report.to_text())
++        return report.exit_code
++
+     settings = load_settings(root)
+ 
+     if args.command == "status":
+
+=== git diff --check ===
+
+=== git ls-files --others --exclude-standard ===
+.opencode/agents/tv-mcp-diagnostic.md
+config/instruments.toml
+config/mcp-tools.json
+docs/MARKET_DATA_INTERFACE.md
+docs/MCP_INTEGRATION.md
+opencode.jsonc
+src/trading_automation/data/market_data/__init__.py
+src/trading_automation/data/market_data/completion.py
+src/trading_automation/data/market_data/contract.py
+src/trading_automation/data/market_data/csv_source.py
+src/trading_automation/data/market_data/symbols.py
+src/trading_automation/data/market_data/tv_source.py
+src/trading_automation/data/market_data/validate.py
+src/trading_automation/mcp/__init__.py
+src/trading_automation/mcp/check.py
+src/trading_automation/mcp/client.py
+src/trading_automation/mcp/config.py
+src/trading_automation/mcp/errors.py
+src/trading_automation/mcp/integrity.py
+src/trading_automation/mcp/manifest.py
+tests/fixtures/fake_mcp_server.py
+tests/fixtures/fake_tv_transport.py
+tests/test_cli_mcp.py
+tests/test_csv_market_data_adapter.py
+tests/test_market_data_completion.py
+tests/test_market_data_contract.py
+tests/test_market_data_validate.py
+tests/test_mcp_check.py
+tests/test_mcp_client.py
+tests/test_mcp_manifest.py
+tests/test_mcp_policy.py
+tests/test_opencode_effective_permissions.py
+tests/test_real_mcp_handshake.py
+tests/test_symbol_registry.py
+tests/test_tv_market_data_adapter.py

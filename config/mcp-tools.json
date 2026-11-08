@@ -1,0 +1,786 @@
+{
+  "schema_version": 1,
+  "source": {
+    "server_name": "tradingview",
+    "server_version": "2.0.0",
+    "repository": "https://github.com/Right-Bruno/tradingview-mcp.git",
+    "commit": "5afdf7d0ee389909bc15dd1c7806796e3ae1b8e7",
+    "entrypoint": "src/server.js",
+    "transport": "stdio"
+  },
+  "classification": {
+    "total": 84,
+    "read_only": 31,
+    "side_effecting": 53,
+    "criterion": "Read-only means the tool only reads TradingView state or data. It may transiently open a fixed panel/editor for observation and, for capture_screenshot, write a local PNG. Side-effecting means the tool changes chart, study, drawing, alert, watchlist, layout, tab, script, or replay state; injects free-form input, clicks, keys, or arbitrary JavaScript; or launches/updates the MCP server."
+  },
+  "phase1_access": {
+    "total": 84,
+    "allowed_count": 3,
+    "denied_count": 81,
+    "allowed": [
+      "chart_get_state",
+      "data_get_ohlcv",
+      "tv_health_check"
+    ],
+    "policy_reference": "D-11: temporary tv-mcp-diagnostic agent with exactly three allowed tools"
+  },
+  "tools": [
+    {
+      "name": "tv_health_check",
+      "opencode_name": "tradingview_tv_health_check",
+      "description": "Check CDP connection to TradingView and return current chart state",
+      "risk": "read_only",
+      "phase1_access": "allowed",
+      "source_file": "src/tools/health.js",
+      "risk_reason": "Calls core.healthCheck(); reads CDP target and chart state. The optional update check is a read-only network request."
+    },
+    {
+      "name": "tv_discover",
+      "opencode_name": "tradingview_tv_discover",
+      "description": "Report which known TradingView API paths are available and their methods",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/health.js",
+      "risk_reason": "Calls core.discover(); enumerates available TradingView API paths without changing them."
+    },
+    {
+      "name": "tv_ui_state",
+      "opencode_name": "tradingview_tv_ui_state",
+      "description": "Get current UI state: which panels are open, what buttons are visible/enabled/disabled",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/health.js",
+      "risk_reason": "Calls core.uiState(); reads panel, button, chart, and replay state only."
+    },
+    {
+      "name": "tv_launch",
+      "opencode_name": "tradingview_tv_launch",
+      "description": "Launch TradingView Desktop with Chrome DevTools Protocol (remote debugging) enabled. Auto-detects install location on Mac, Windows, and Linux, including Windows MSIX/Store installs. If a Store install blocks the debug port, automatically relaunches from a local package copy (result then includes msix_local_copy: true; the first fallback launch copies ~330MB one time, so it can take a minute).",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/health.js",
+      "risk_reason": "Calls core.launch(); launches or kills TradingView Desktop as a process-level side effect."
+    },
+    {
+      "name": "tv_update",
+      "opencode_name": "tradingview_tv_update",
+      "description": "Update this MCP server to the latest version: git fast-forward of origin/main + npm ci when dependencies changed. Safe by design ΓÇö refuses on non-git installs, dirty working trees, non-main branches, or diverged history. After a successful update the MCP server must be restarted to load the new code.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/health.js",
+      "risk_reason": "Calls core.update(); performs a git fast-forward and npm ci in the MCP clone."
+    },
+    {
+      "name": "chart_get_state",
+      "opencode_name": "tradingview_chart_get_state",
+      "description": "Get current chart state (symbol, timeframe, chart type, indicators)",
+      "risk": "read_only",
+      "phase1_access": "allowed",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.getState(); reads symbol, timeframe, chart type, and studies only."
+    },
+    {
+      "name": "chart_set_symbol",
+      "opencode_name": "tradingview_chart_set_symbol",
+      "description": "Change the chart symbol",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.setSymbol(); changes the chart symbol."
+    },
+    {
+      "name": "chart_set_timeframe",
+      "opencode_name": "tradingview_chart_set_timeframe",
+      "description": "Change the chart timeframe/resolution",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.setTimeframe(); changes the chart timeframe."
+    },
+    {
+      "name": "chart_set_type",
+      "opencode_name": "tradingview_chart_set_type",
+      "description": "Change chart type",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.setType(); changes the chart type."
+    },
+    {
+      "name": "chart_manage_indicator",
+      "opencode_name": "tradingview_chart_manage_indicator",
+      "description": "Add or remove an indicator/study on the chart",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.manageIndicator(); adds or removes a study on the chart."
+    },
+    {
+      "name": "chart_get_visible_range",
+      "opencode_name": "tradingview_chart_get_visible_range",
+      "description": "Get the visible date range (unix timestamps) and bars range on the chart",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.getVisibleRange(); reads the visible range only."
+    },
+    {
+      "name": "chart_set_visible_range",
+      "opencode_name": "tradingview_chart_set_visible_range",
+      "description": "Zoom the chart to a specific date range (unix timestamps)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.setVisibleRange(); changes the chart viewport."
+    },
+    {
+      "name": "chart_scroll_to_date",
+      "opencode_name": "tradingview_chart_scroll_to_date",
+      "description": "Jump the chart view to center on a specific date",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.scrollToDate(); moves the chart viewport."
+    },
+    {
+      "name": "symbol_info",
+      "opencode_name": "tradingview_symbol_info",
+      "description": "Get detailed metadata about the current symbol (name, exchange, type, description)",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.symbolInfo(); reads current-symbol metadata only."
+    },
+    {
+      "name": "symbol_search",
+      "opencode_name": "tradingview_symbol_search",
+      "description": "Search for symbols by name or keyword",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/chart.js",
+      "risk_reason": "Calls core.symbolSearch(); queries TradingView's symbol-search REST API without touching the chart."
+    },
+    {
+      "name": "pine_get_source",
+      "opencode_name": "tradingview_pine_get_source",
+      "description": "Get current Pine Script source code from the editor",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.getSource(); reads the Pine editor source. It may open the Pine Editor if closed, but does not change script content or chart state."
+    },
+    {
+      "name": "pine_set_source",
+      "opencode_name": "tradingview_pine_set_source",
+      "description": "Set Pine Script source code in the editor",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.setSource(); replaces the Pine Editor source."
+    },
+    {
+      "name": "pine_compile",
+      "opencode_name": "tradingview_pine_compile",
+      "description": "Compile / add the current Pine Script to the chart",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.compile(); compiles and adds the script to the chart."
+    },
+    {
+      "name": "pine_get_errors",
+      "opencode_name": "tradingview_pine_get_errors",
+      "description": "Get Pine Script compilation errors from Monaco markers",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.getErrors(); reads Monaco markers. It may open the Pine Editor if closed, but does not change content."
+    },
+    {
+      "name": "pine_save",
+      "opencode_name": "tradingview_pine_save",
+      "description": "Save the current Pine Script (Ctrl+S)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.save(); saves the current Pine script."
+    },
+    {
+      "name": "pine_get_console",
+      "opencode_name": "tradingview_pine_get_console",
+      "description": "Read Pine Script console/log output (compile messages, log.info(), errors)",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.getConsole(); reads Pine console output. It may open the Pine Editor if closed, but does not change content."
+    },
+    {
+      "name": "pine_smart_compile",
+      "opencode_name": "tradingview_pine_smart_compile",
+      "description": "Intelligent compile: detects button, compiles, checks errors, reports study changes",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.smartCompile(); compiles the script and may change studies on the chart."
+    },
+    {
+      "name": "pine_new",
+      "opencode_name": "tradingview_pine_new",
+      "description": "Create a new blank Pine Script",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.newScript(); creates a new Pine script."
+    },
+    {
+      "name": "pine_open",
+      "opencode_name": "tradingview_pine_open",
+      "description": "Open a saved Pine Script by name",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.openScript(); opens a saved Pine script."
+    },
+    {
+      "name": "pine_list_scripts",
+      "opencode_name": "tradingview_pine_list_scripts",
+      "description": "List saved Pine Scripts",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.listScripts(); reads the saved-script list through the pine-facade REST API."
+    },
+    {
+      "name": "pine_analyze",
+      "opencode_name": "tradingview_pine_analyze",
+      "description": "Run static analysis on Pine Script code WITHOUT compiling ΓÇö catches array out-of-bounds, unguarded array.first()/last(), bad loop bounds, and implicit bool casts. Works offline, no TradingView connection needed.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.analyze(); runs offline static analysis with no TradingView connection or mutation."
+    },
+    {
+      "name": "pine_check",
+      "opencode_name": "tradingview_pine_check",
+      "description": "Compile Pine Script via TradingView's server API without needing the chart open. Returns compilation errors/warnings. Useful for validating code before injecting into the chart.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pine.js",
+      "risk_reason": "Calls core.check(); validates source through TradingView's server-side compile API without changing the chart or editor."
+    },
+    {
+      "name": "data_get_ohlcv",
+      "opencode_name": "tradingview_data_get_ohlcv",
+      "description": "Get OHLCV bar data from the chart. Use summary=true for compact stats instead of all bars (saves context).",
+      "risk": "read_only",
+      "phase1_access": "allowed",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getOhlcv(); reads chart bars only."
+    },
+    {
+      "name": "data_get_indicator",
+      "opencode_name": "tradingview_data_get_indicator",
+      "description": "Get indicator/study info and input values",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getIndicator(); reads study info and input values only."
+    },
+    {
+      "name": "data_get_strategy_results",
+      "opencode_name": "tradingview_data_get_strategy_results",
+      "description": "Get strategy performance metrics from Strategy Tester. Auto-opens the panel and auto-unhides a hidden strategy (TradingView never computes reports for hidden strategies); result includes unhidden_strategies when that happened.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls ensureStrategyTesterReady(); auto-opens the Strategy Tester and unhides strategies before reading results."
+    },
+    {
+      "name": "data_get_trades",
+      "opencode_name": "tradingview_data_get_trades",
+      "description": "Get trade list from Strategy Tester. Auto-opens the panel and auto-unhides a hidden strategy.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls ensureStrategyTesterReady(); auto-opens the Strategy Tester and unhides strategies before reading trades."
+    },
+    {
+      "name": "data_get_equity",
+      "opencode_name": "tradingview_data_get_equity",
+      "description": "Get equity curve data from Strategy Tester",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls ensureStrategyTesterReady(); auto-opens the Strategy Tester and unhides strategies before reading equity."
+    },
+    {
+      "name": "quote_get",
+      "opencode_name": "tradingview_quote_get",
+      "description": "Get real-time quote data for a symbol (price, OHLC, volume). If symbol is provided and differs from the current chart, the chart is briefly switched to fetch the quote and then restored ΓÇö adds ~1-2s and serializes parallel calls.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getQuote(); a non-blank symbol can briefly switch and restore the chart symbol."
+    },
+    {
+      "name": "depth_get",
+      "opencode_name": "tradingview_depth_get",
+      "description": "Get order book / DOM (Depth of Market) data from the chart",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getDepth(); reads DOM/order-book elements only."
+    },
+    {
+      "name": "data_get_pine_lines",
+      "opencode_name": "tradingview_data_get_pine_lines",
+      "description": "Read horizontal price levels drawn by Pine Script indicators (line.new). Returns deduplicated price levels per study. Use study_filter to target a specific indicator.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getPineLines(); reads Pine line drawings only."
+    },
+    {
+      "name": "data_get_pine_labels",
+      "opencode_name": "tradingview_data_get_pine_labels",
+      "description": "Read text labels drawn by Pine Script indicators (label.new). Returns text and price pairs. Use study_filter to target a specific indicator.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getPineLabels(); reads Pine labels only."
+    },
+    {
+      "name": "data_get_pine_tables",
+      "opencode_name": "tradingview_data_get_pine_tables",
+      "description": "Read table data drawn by Pine Script indicators (table.new). Returns formatted text rows per table. Use study_filter to target a specific indicator.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getPineTables(); reads Pine tables only."
+    },
+    {
+      "name": "data_get_pine_boxes",
+      "opencode_name": "tradingview_data_get_pine_boxes",
+      "description": "Read box/zone boundaries drawn by Pine Script indicators (box.new). Returns deduplicated {high, low} price zones. Use study_filter to target a specific indicator.",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getPineBoxes(); reads Pine boxes only."
+    },
+    {
+      "name": "data_get_study_values",
+      "opencode_name": "tradingview_data_get_study_values",
+      "description": "Get current indicator values from the data window for all visible studies (RSI, MACD, Bollinger Bands, EMAs, custom indicators with plot()).",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/data.js",
+      "risk_reason": "Calls core.getStudyValues(); reads data-window study values only."
+    },
+    {
+      "name": "capture_screenshot",
+      "opencode_name": "tradingview_capture_screenshot",
+      "description": "Take a screenshot of the TradingView chart",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/capture.js",
+      "risk_reason": "Captures pixels through CDP or TradingView's screenshot API and writes only a local PNG. It does not change chart configuration or data; the optional api method may trigger TradingView's own screenshot action."
+    },
+    {
+      "name": "draw_shape",
+      "opencode_name": "tradingview_draw_shape",
+      "description": "Draw a shape/line on the chart",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/drawing.js",
+      "risk_reason": "Calls core.drawShape(); creates a drawing on the chart."
+    },
+    {
+      "name": "draw_list",
+      "opencode_name": "tradingview_draw_list",
+      "description": "List all shapes/drawings on the chart",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/drawing.js",
+      "risk_reason": "Calls core.listDrawings(); reads drawing IDs and names only."
+    },
+    {
+      "name": "draw_clear",
+      "opencode_name": "tradingview_draw_clear",
+      "description": "Remove all drawings from the chart",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/drawing.js",
+      "risk_reason": "Calls core.clearAll(); removes all drawings from the chart."
+    },
+    {
+      "name": "draw_remove_one",
+      "opencode_name": "tradingview_draw_remove_one",
+      "description": "Remove a specific drawing by entity ID",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/drawing.js",
+      "risk_reason": "Calls core.removeOne(); removes a drawing from the chart."
+    },
+    {
+      "name": "draw_get_properties",
+      "opencode_name": "tradingview_draw_get_properties",
+      "description": "Get properties and points of a specific drawing",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/drawing.js",
+      "risk_reason": "Calls core.getProperties(); reads drawing properties only."
+    },
+    {
+      "name": "alert_create",
+      "opencode_name": "tradingview_alert_create",
+      "description": "Create a price alert on the current chart symbol via TradingView's alert API",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/alerts.js",
+      "risk_reason": "Calls core.create(); creates a TradingView price alert."
+    },
+    {
+      "name": "alert_list",
+      "opencode_name": "tradingview_alert_list",
+      "description": "List active alerts",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/alerts.js",
+      "risk_reason": "Calls core.list(); reads active alerts through the pricealerts REST API."
+    },
+    {
+      "name": "alert_delete",
+      "opencode_name": "tradingview_alert_delete",
+      "description": "Delete a specific alert by id, or all active alerts",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/alerts.js",
+      "risk_reason": "Calls core.deleteAlerts(); deletes one or all active alerts."
+    },
+    {
+      "name": "batch_run",
+      "opencode_name": "tradingview_batch_run",
+      "description": "Run an action across multiple symbols and/or timeframes",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/batch.js",
+      "risk_reason": "Calls core.batchRun(); iterates chart symbols/timeframes and can run screenshots, OHLCV reads, or Strategy Tester actions."
+    },
+    {
+      "name": "replay_start",
+      "opencode_name": "tradingview_replay_start",
+      "description": "Start bar replay mode, optionally at a specific date",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.start(); starts bar replay mode."
+    },
+    {
+      "name": "replay_step",
+      "opencode_name": "tradingview_replay_step",
+      "description": "Advance one bar in replay mode",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.step(); advances one replay bar."
+    },
+    {
+      "name": "replay_autoplay",
+      "opencode_name": "tradingview_replay_autoplay",
+      "description": "Toggle autoplay in replay mode, optionally set speed",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.autoplay(); toggles replay autoplay or changes its speed."
+    },
+    {
+      "name": "replay_stop",
+      "opencode_name": "tradingview_replay_stop",
+      "description": "Stop replay and return to realtime",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.stop(); stops replay and returns to realtime."
+    },
+    {
+      "name": "replay_trade",
+      "opencode_name": "tradingview_replay_trade",
+      "description": "Execute a trade action in replay mode (buy, sell, or close position)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.trade(); executes a buy, sell, or close action in replay."
+    },
+    {
+      "name": "replay_status",
+      "opencode_name": "tradingview_replay_status",
+      "description": "Get current replay mode status",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/replay.js",
+      "risk_reason": "Calls core.status(); reads replay availability, mode, date, and autoplay state only."
+    },
+    {
+      "name": "indicator_set_inputs",
+      "opencode_name": "tradingview_indicator_set_inputs",
+      "description": "Change indicator/study input values (e.g., length, source, period)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/indicators.js",
+      "risk_reason": "Calls core.setInputs(); changes study input values."
+    },
+    {
+      "name": "indicator_toggle_visibility",
+      "opencode_name": "tradingview_indicator_toggle_visibility",
+      "description": "Show or hide an indicator/study on the chart",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/indicators.js",
+      "risk_reason": "Calls core.toggleVisibility(); shows or hides a study."
+    },
+    {
+      "name": "indicator_search",
+      "opencode_name": "tradingview_indicator_search",
+      "description": "Search TradingView's Indicators dialog for indicators, strategies, and community/public scripts by keyword. Returns matching titles grouped by section (Technicals, Community, My scripts, etc.).",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/indicators.js",
+      "risk_reason": "Calls core.searchStudies(); opens the Indicators dialog and types a free-form query into it. The dialog is closed after reading, but the tool injects UI input."
+    },
+    {
+      "name": "indicator_add",
+      "opencode_name": "tradingview_indicator_add",
+      "description": "Search the Indicators dialog and add a result to the chart by name. Works for strategies and community scripts, not just built-ins. Returns the new study entity_id.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/indicators.js",
+      "risk_reason": "Calls core.addStudyFromSearch(); searches the Indicators dialog and adds a study to the chart."
+    },
+    {
+      "name": "watchlist_get",
+      "opencode_name": "tradingview_watchlist_get",
+      "description": "Get all symbols from the current TradingView watchlist with last price, change, and change%",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/watchlist.js",
+      "risk_reason": "Calls core.get(); reads watchlist rows. It may open the watchlist panel if closed, but does not change watchlist contents."
+    },
+    {
+      "name": "watchlist_add",
+      "opencode_name": "tradingview_watchlist_add",
+      "description": "Add a symbol to the TradingView watchlist",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/watchlist.js",
+      "risk_reason": "Calls core.add(); adds a symbol to the watchlist."
+    },
+    {
+      "name": "watchlist_add_bulk",
+      "opencode_name": "tradingview_watchlist_add_bulk",
+      "description": "Add multiple symbols to the TradingView watchlist",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/watchlist.js",
+      "risk_reason": "Calls core.addBulk(); adds multiple symbols to the watchlist."
+    },
+    {
+      "name": "watchlist_remove",
+      "opencode_name": "tradingview_watchlist_remove",
+      "description": "Remove one or more symbols from the active TradingView watchlist",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/watchlist.js",
+      "risk_reason": "Calls core.remove(); removes symbols from the watchlist."
+    },
+    {
+      "name": "ui_click",
+      "opencode_name": "tradingview_ui_click",
+      "description": "Click a UI element by aria-label, data-name, text content, or class substring",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.click(); dispatches a UI click."
+    },
+    {
+      "name": "ui_open_panel",
+      "opencode_name": "tradingview_ui_open_panel",
+      "description": "Open, close, or toggle TradingView panels (pine-editor, strategy-tester, watchlist, alerts, trading)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.openPanel(); opens, closes, or toggles a TradingView panel."
+    },
+    {
+      "name": "ui_fullscreen",
+      "opencode_name": "tradingview_ui_fullscreen",
+      "description": "Toggle TradingView fullscreen mode",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.fullscreen(); toggles fullscreen mode."
+    },
+    {
+      "name": "layout_list",
+      "opencode_name": "tradingview_layout_list",
+      "description": "List saved chart layouts",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.layoutList(); reads saved layouts only."
+    },
+    {
+      "name": "layout_switch",
+      "opencode_name": "tradingview_layout_switch",
+      "description": "Switch to a saved chart layout by name or ID",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.layoutSwitch(); loads a saved chart layout."
+    },
+    {
+      "name": "ui_keyboard",
+      "opencode_name": "tradingview_ui_keyboard",
+      "description": "Press keyboard keys or shortcuts (e.g., Enter, Escape, Alt+S, Ctrl+Z)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.keyboard(); dispatches keyboard input."
+    },
+    {
+      "name": "ui_type_text",
+      "opencode_name": "tradingview_ui_type_text",
+      "description": "Type text into the currently focused input/textarea element",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.typeText(); types text into the focused element."
+    },
+    {
+      "name": "ui_hover",
+      "opencode_name": "tradingview_ui_hover",
+      "description": "Hover over a UI element by aria-label, data-name, or text content",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.hover(); dispatches pointer hover input."
+    },
+    {
+      "name": "ui_scroll",
+      "opencode_name": "tradingview_ui_scroll",
+      "description": "Scroll the chart or page up/down/left/right",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.scroll(); dispatches scroll input to the chart or page."
+    },
+    {
+      "name": "ui_mouse_click",
+      "opencode_name": "tradingview_ui_mouse_click",
+      "description": "Click at specific x,y coordinates on the TradingView window",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.mouseClick(); dispatches a mouse click at screen coordinates."
+    },
+    {
+      "name": "ui_find_element",
+      "opencode_name": "tradingview_ui_find_element",
+      "description": "Find UI elements by text, aria-label, or CSS selector and return their positions",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.findElement(); reads DOM element positions only."
+    },
+    {
+      "name": "ui_evaluate",
+      "opencode_name": "tradingview_ui_evaluate",
+      "description": "Execute JavaScript code in the TradingView page context for advanced automation",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/ui.js",
+      "risk_reason": "Calls core.uiEvaluate(); executes arbitrary JavaScript in the TradingView page."
+    },
+    {
+      "name": "pane_list",
+      "opencode_name": "tradingview_pane_list",
+      "description": "List all chart panes in the current layout with their symbols and active state",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pane.js",
+      "risk_reason": "Calls core.list(); reads pane symbols and layout metadata only."
+    },
+    {
+      "name": "pane_set_layout",
+      "opencode_name": "tradingview_pane_set_layout",
+      "description": "Change the chart grid layout (e.g., single, 2x2, 2h, 3v)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pane.js",
+      "risk_reason": "Calls core.setLayout(); changes the chart grid layout."
+    },
+    {
+      "name": "pane_focus",
+      "opencode_name": "tradingview_pane_focus",
+      "description": "Focus a specific chart pane by index (0-based)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pane.js",
+      "risk_reason": "Calls core.focus(); changes the focused chart pane."
+    },
+    {
+      "name": "pane_set_symbol",
+      "opencode_name": "tradingview_pane_set_symbol",
+      "description": "Set the symbol on a specific pane by index",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/pane.js",
+      "risk_reason": "Calls core.setSymbol(); changes the symbol on a chart pane."
+    },
+    {
+      "name": "tab_list",
+      "opencode_name": "tradingview_tab_list",
+      "description": "List all open TradingView chart tabs",
+      "risk": "read_only",
+      "phase1_access": "denied",
+      "source_file": "src/tools/tab.js",
+      "risk_reason": "Calls core.list(); lists CDP chart tabs without changing them."
+    },
+    {
+      "name": "tab_new",
+      "opencode_name": "tradingview_tab_new",
+      "description": "Open a new chart tab. Optionally pick what to load in it: layout \"new\" creates a named blank layout, or pass a saved layout name to open it.",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/tab.js",
+      "risk_reason": "Calls core.newTab(); opens a new chart tab."
+    },
+    {
+      "name": "layout_new",
+      "opencode_name": "tradingview_layout_new",
+      "description": "Create a new named blank chart layout (opens in a new tab)",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/tab.js",
+      "risk_reason": "Calls core.newTab(); creates a new named layout in a new tab."
+    },
+    {
+      "name": "tab_close",
+      "opencode_name": "tradingview_tab_close",
+      "description": "Close the current chart tab",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/tab.js",
+      "risk_reason": "Calls core.closeTab(); closes the current chart tab."
+    },
+    {
+      "name": "tab_switch",
+      "opencode_name": "tradingview_tab_switch",
+      "description": "Switch to a chart tab by index",
+      "risk": "side_effecting",
+      "phase1_access": "denied",
+      "source_file": "src/tools/tab.js",
+      "risk_reason": "Calls core.switchTab(); switches chart tabs."
+    }
+  ]
+}
