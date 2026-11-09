@@ -9,9 +9,9 @@
 
 5. Required file inventory:
 
-EF928BD98288E37C85186113AC00029A85C1B10F62B205EDAB61A9BC510DD806  15971  src/trading_automation/data/market_data/tv_source.py
-121CA75564588CF5D047D337E13ECE8F6A2D4AD6357BDA9231ABE7470FEBF820  3640  tests/fixtures/fake_tv_transport.py
-4574809D238ADF92EF74A360234A888BE8CAF1A6E6EF939E70BECEF83AF46103  22180  tests/test_tv_market_data_adapter.py
+D28AC6A4DFA6E743FDF844B5DFAF53FAF31C5C95F66CF21489D997AD9434F3EF  19622  src/trading_automation/data/market_data/tv_source.py
+A2E250F4438505948F4D717E4B823468A39B4FE021143941F009EB96BF9BDD0A  4448  tests/fixtures/fake_tv_transport.py
+B1E8600613FFDD9479BE340628CB768DE59AD73E0697FC50725176584B461C20  35491  tests/test_tv_market_data_adapter.py
 FE7032B6A91E6FD997502D1BD220680CD36B2649A5EAB70D4CE0724F3CB29AEA  16358  src/trading_automation/data/market_data/contract.py
 8F98FBB40365DB5EBE6670C14D2EDEB5931CCFA52C3520CB8709A8C3DF4A9624  11955  src/trading_automation/data/market_data/validate.py
 080CCAA195136EAD278D3AA1A069BB00873D4738AAE2C7A8CCB9268BCA867E94  4741  src/trading_automation/data/market_data/completion.py
@@ -36,4 +36,4 @@ E51CE68DFD80D96AE04F2EEF74C23FD0B14DDA16DDE678DBF3608A502C2F2731  5756  GIT_EVID
 
 8. Statement: No repository files were changed during packaging. All files were
    copied read-only to a temporary directory outside the repository.
-   Nothing was staged, committed, or modified.
+   Nothing was staged, committed, or modified in the source repository.

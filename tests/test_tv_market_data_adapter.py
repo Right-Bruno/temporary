@@ -7,6 +7,7 @@ verifies chart state before requesting OHLCV data.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import subprocess
@@ -23,6 +24,7 @@ from trading_automation.data.market_data.contract import (
     InstrumentRef,
     SourceBinding,
     SourcePreconditionError,
+    SourceUnavailableError,
     Timeframe,
 )
 from trading_automation.data.market_data.tv_source import TvMarketDataSource
@@ -50,7 +52,7 @@ _NOW = datetime(2026, 11, 8, 12, 0, 0, tzinfo=timezone.utc)
 def _healthy_client() -> FakeMcpClient:
     return FakeMcpClient(
         health_response={"success": True},
-        chart_state={
+        chart_states={
             "success": True,
             "symbol": "FOREXCOM:EURUSD",
             "resolution": "60",
@@ -116,13 +118,19 @@ class TvAdapterHappyPathTests(unittest.TestCase):
             self.assertIsInstance(candle.open, Decimal)
             self.assertIsInstance(candle.close, Decimal)
 
-        # Exact call sequence and arguments.
+        # Exact call sequence and arguments: health, initial chart state,
+        # OHLCV, post-fetch chart state.
         self.assertEqual(
             client.call_order,
-            ["tv_health_check", "chart_get_state", "data_get_ohlcv"],
+            [
+                "tv_health_check",
+                "chart_get_state",
+                "data_get_ohlcv",
+                "chart_get_state",
+            ],
         )
         self.assertEqual(client.tv_health_check_calls, 1)
-        self.assertEqual(client.chart_get_state_calls, 1)
+        self.assertEqual(client.chart_get_state_calls, 2)
         self.assertEqual(client.data_get_ohlcv_calls, 1)
         self.assertEqual(client.last_arguments("data_get_ohlcv"), {"count": 2})
 
@@ -138,7 +146,7 @@ class TvAdapterChartVerificationTests(unittest.TestCase):
     def _mismatch_client(self, symbol, resolution):
         return FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": symbol, "resolution": resolution},
+            chart_states={"success": True, "symbol": symbol, "resolution": resolution},
             ohlcv_response={"success": True, "bars": []},
         )
 
@@ -160,7 +168,7 @@ class TvAdapterChartVerificationTests(unittest.TestCase):
     def test_unsupported_resolution_rejects_before_ohlcv(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "15"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "15"},
             ohlcv_response={"success": True, "bars": []},
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -171,7 +179,7 @@ class TvAdapterChartVerificationTests(unittest.TestCase):
     def test_missing_symbol_rejects_before_ohlcv(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "resolution": "60"},
+            chart_states={"success": True, "resolution": "60"},
             ohlcv_response={"success": True, "bars": []},
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -182,7 +190,7 @@ class TvAdapterChartVerificationTests(unittest.TestCase):
     def test_missing_resolution_rejects_before_ohlcv(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD"},
             ohlcv_response={"success": True, "bars": []},
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -250,7 +258,7 @@ class TvAdapterTimestampTests(unittest.TestCase):
     def test_seconds_timestamp_converts(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
             ohlcv_response=self._bars([1731076800]),
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -261,7 +269,7 @@ class TvAdapterTimestampTests(unittest.TestCase):
     def test_milliseconds_timestamp_converts(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
             ohlcv_response=self._bars([1731076800000]),
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -272,7 +280,7 @@ class TvAdapterTimestampTests(unittest.TestCase):
     def test_out_of_range_timestamp_rejected(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
             ohlcv_response=self._bars([99999999999999]),
         )
         adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
@@ -303,7 +311,7 @@ class TvAdapterValidationTests(unittest.TestCase):
     def _client_with(self, ohlcv_response):
         return FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
             ohlcv_response=ohlcv_response,
         )
 
@@ -355,7 +363,7 @@ class TvAdapterCompletionTests(unittest.TestCase):
     def test_latest_candle_remains_incomplete(self):
         client = FakeMcpClient(
             health_response={"success": True},
-            chart_state={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            chart_states={"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
             ohlcv_response={
                 "success": True,
                 "bars": [
@@ -586,6 +594,310 @@ class TvAdapterRealClientIntegrationTests(unittest.TestCase):
         # Latest candle remains incomplete (evidence completion).
         self.assertFalse(candle.is_closed)
         self.assertEqual(series.metadata.adapter_name, "tradingview")
+
+
+class TvAdapterClockLifecycleTests(unittest.TestCase):
+    """The fetch-time clock must be resolved per request, not frozen at
+    construction."""
+
+    def test_fetch_time_resolved_per_request_not_frozen_at_construction(self):
+        T0 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=timezone.utc)
+        T1 = datetime(2026, 11, 8, 11, 0, 0, tzinfo=timezone.utc)
+
+        # Explicit now=T0 → fetched_at_utc is T0 (not some other time).
+        client_a = _healthy_client()
+        adapter_a = TvMarketDataSource(_CANONICAL, _BINDING, client_a, now=T0)
+        series_a = adapter_a.get_candles(_request(count=1))
+        self.assertEqual(series_a.fetched_at_utc, T0)
+
+        # Explicit now=T1 → fetched_at_utc is T1, proving the time is
+        # resolved per request from the now parameter, not frozen globally.
+        client_b = _healthy_client()
+        adapter_b = TvMarketDataSource(_CANONICAL, _BINDING, client_b, now=T1)
+        series_b = adapter_b.get_candles(_request(count=1))
+        self.assertEqual(series_b.fetched_at_utc, T1)
+
+    def test_future_candle_still_rejected(self):
+        T0 = datetime(2026, 11, 8, 10, 0, 0, tzinfo=timezone.utc)
+        future_time = datetime(2026, 11, 8, 12, 0, 0, tzinfo=timezone.utc)
+
+        client = FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            ],
+            ohlcv_response={
+                "success": True,
+                "bars": [{
+                    "time": int(future_time.timestamp()),
+                    "open": "1.08",
+                    "high": "1.09",
+                    "low": "1.07",
+                    "close": "1.08",
+                    "volume": "100",
+                }],
+            },
+        )
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=T0)
+        with self.assertRaises(__import__(
+            "trading_automation.data.market_data.contract",
+            fromlist=["MarketDataValidationError"],
+        ).MarketDataValidationError) as ctx:
+            adapter.get_candles(_request(count=1))
+        self.assertIn("FUTURE_CANDLE", str(ctx.exception))
+
+
+class TvAdapterPostFetchChartVerificationTests(unittest.TestCase):
+    """The chart must be verified again after OHLCV retrieval."""
+
+    def _two_state_client(self, first_state, second_state):
+        return FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[first_state, second_state],
+            ohlcv_response={
+                "success": True,
+                "bars": [{
+                    "time": 1731076800,
+                    "open": "1.08",
+                    "high": "1.09",
+                    "low": "1.07",
+                    "close": "1.08",
+                    "volume": "100",
+                }],
+            },
+        )
+
+    def test_symbol_changes_between_reads_rejected(self):
+        client = self._two_state_client(
+            {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            {"success": True, "symbol": "FOREXCOM:GBPUSD", "resolution": "60"},
+        )
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(SourcePreconditionError):
+            adapter.get_candles(_request())
+        # Both chart_get_state calls happen; no OHLCV data is returned.
+        self.assertEqual(client.chart_get_state_calls, 2)
+        self.assertEqual(client.data_get_ohlcv_calls, 1)
+
+    def test_resolution_changes_between_reads_rejected(self):
+        client = self._two_state_client(
+            {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "5"},
+        )
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(SourcePreconditionError):
+            adapter.get_candles(_request())
+        self.assertEqual(client.chart_get_state_calls, 2)
+        self.assertEqual(client.data_get_ohlcv_calls, 1)
+
+
+class TvAdapterPayloadHashTests(unittest.TestCase):
+    """The raw OHLCV MCP payload is hashed in memory; nothing is written to
+    disk."""
+
+    def _ohlcv_payload(self):
+        return {
+            "success": True,
+            "bars": [{
+                "time": 1731076800,
+                "open": "1.0800",
+                "high": "1.0850",
+                "low": "1.0790",
+                "close": "1.0820",
+                "volume": "1000",
+            }],
+            "total_bars": 1,
+            "source": "direct_bars",
+        }
+
+    def _client_with_payload(self, payload):
+        return FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            ],
+            ohlcv_response=payload,
+        )
+
+    def test_payload_sha256_and_byte_count(self):
+        payload = self._ohlcv_payload()
+        raw_text = json.dumps(
+            payload, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
+        expected_sha = hashlib.sha256(raw_text).hexdigest()
+
+        client = self._client_with_payload(payload)
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        series = adapter.get_candles(_request(count=1))
+
+        self.assertEqual(series.raw_payload_sha256, expected_sha)
+        self.assertEqual(series.raw_payload_bytes, len(raw_text))
+
+    def test_identical_payloads_produce_identical_hashes(self):
+        payload = self._ohlcv_payload()
+        client_a = self._client_with_payload(payload)
+        client_b = self._client_with_payload(dict(payload))
+        adapter_a = TvMarketDataSource(_CANONICAL, _BINDING, client_a, now=_NOW)
+        adapter_b = TvMarketDataSource(_CANONICAL, _BINDING, client_b, now=_NOW)
+        series_a = adapter_a.get_candles(_request(count=1))
+        series_b = adapter_b.get_candles(_request(count=1))
+        self.assertEqual(series_a.raw_payload_sha256, series_b.raw_payload_sha256)
+
+    def test_different_payloads_produce_different_hashes(self):
+        payload_a = self._ohlcv_payload()
+        payload_b = dict(self._ohlcv_payload())
+        payload_b["bars"][0]["volume"] = "2000"
+        client_a = self._client_with_payload(payload_a)
+        client_b = self._client_with_payload(payload_b)
+        adapter_a = TvMarketDataSource(_CANONICAL, _BINDING, client_a, now=_NOW)
+        adapter_b = TvMarketDataSource(_CANONICAL, _BINDING, client_b, now=_NOW)
+        series_a = adapter_a.get_candles(_request(count=1))
+        series_b = adapter_b.get_candles(_request(count=1))
+        self.assertNotEqual(series_a.raw_payload_sha256, series_b.raw_payload_sha256)
+
+    def test_raw_data_not_written_to_disk(self):
+        payload = self._ohlcv_payload()
+        client = self._client_with_payload(payload)
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+
+        tmpdir = tempfile.mkdtemp(prefix="tv_hash_test_")
+        files_before = set(os.listdir(tmpdir))
+        try:
+            series = adapter.get_candles(_request(count=1))
+            files_after = set(os.listdir(tmpdir))
+            self.assertEqual(files_before, files_after)
+            self.assertIsNotNone(series.raw_payload_sha256)
+            self.assertIsNotNone(series.raw_payload_bytes)
+        finally:
+            for name in os.listdir(tmpdir):
+                os.unlink(os.path.join(tmpdir, name))
+            os.rmdir(tmpdir)
+
+
+class TvAdapterTimestampEdgeCaseTests(unittest.TestCase):
+    """Timestamp parsing must reject booleans, NaN, infinity, and fractional
+    truncation, while preserving exact microsecond conversion."""
+
+    def _client_with_time(self, time_value):
+        return FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            ],
+            ohlcv_response={
+                "success": True,
+                "bars": [{
+                    "time": time_value,
+                    "open": "1.08",
+                    "high": "1.09",
+                    "low": "1.07",
+                    "close": "1.08",
+                    "volume": "100",
+                }],
+            },
+        )
+
+    def test_fractional_seconds_preserved(self):
+        # 1731076800.5 seconds = 1731076800 seconds + 500000 microseconds.
+        client = self._client_with_time(1731076800.5)
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        series = adapter.get_candles(_request(count=1))
+        expected = to_new_york(
+            datetime.fromtimestamp(1731076800, tz=timezone.utc)
+        ) + __import__("datetime").timedelta(microseconds=500000)
+        self.assertEqual(series.candles[0].timestamp, expected)
+
+    def test_fractional_milliseconds_preserved(self):
+        # 1731076800500.5 milliseconds = 1731076800 seconds + 500500 microseconds.
+        client = self._client_with_time(1731076800500.5)
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        series = adapter.get_candles(_request(count=1))
+        expected = to_new_york(
+            datetime.fromtimestamp(1731076800, tz=timezone.utc)
+        ) + __import__("datetime").timedelta(microseconds=500500)
+        self.assertEqual(series.candles[0].timestamp, expected)
+
+    def test_boolean_timestamp_rejected(self):
+        client = self._client_with_time(True)
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(__import__(
+            "trading_automation.data.market_data.contract",
+            fromlist=["MarketDataValidationError"],
+        ).MarketDataValidationError):
+            adapter.get_candles(_request(count=1))
+
+    def test_nan_timestamp_rejected(self):
+        client = self._client_with_time(float("nan"))
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(__import__(
+            "trading_automation.data.market_data.contract",
+            fromlist=["MarketDataValidationError"],
+        ).MarketDataValidationError):
+            adapter.get_candles(_request(count=1))
+
+    def test_infinity_timestamp_rejected(self):
+        client = self._client_with_time(float("inf"))
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(__import__(
+            "trading_automation.data.market_data.contract",
+            fromlist=["MarketDataValidationError"],
+        ).MarketDataValidationError):
+            adapter.get_candles(_request(count=1))
+
+    def test_negative_infinity_timestamp_rejected(self):
+        client = self._client_with_time(float("-inf"))
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(__import__(
+            "trading_automation.data.market_data.contract",
+            fromlist=["MarketDataValidationError"],
+        ).MarketDataValidationError):
+            adapter.get_candles(_request(count=1))
+
+
+class TvAdapterMcpErrorTests(unittest.TestCase):
+    """MCP tool errors must be mapped to the appropriate market-data error
+    category, not silently converted into missing-field errors."""
+
+    def test_chart_state_tool_error(self):
+        client = FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[
+                {
+                    "success": False,
+                    "error": "chart not available",
+                },
+                {
+                    "success": False,
+                    "error": "chart not available",
+                },
+            ],
+            ohlcv_response={"success": True, "bars": []},
+        )
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(SourcePreconditionError) as ctx:
+            adapter.get_candles(_request())
+        self.assertIn("chart not available", str(ctx.exception))
+        self.assertEqual(client.data_get_ohlcv_calls, 0)
+
+    def test_ohlcv_tool_error_false_success(self):
+        client = FakeMcpClient(
+            health_response={"success": True},
+            chart_states=[
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+                {"success": True, "symbol": "FOREXCOM:EURUSD", "resolution": "60"},
+            ],
+            ohlcv_response={
+                "success": False,
+                "error": "CDP read timeout",
+            },
+        )
+        adapter = TvMarketDataSource(_CANONICAL, _BINDING, client, now=_NOW)
+        with self.assertRaises(SourceUnavailableError) as ctx:
+            adapter.get_candles(_request())
+        self.assertIn("CDP read timeout", str(ctx.exception))
 
 
 if __name__ == "__main__":

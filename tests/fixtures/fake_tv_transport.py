@@ -12,6 +12,7 @@ AssertionError to prove the adapter never invokes forbidden tools.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Mapping
 
 
@@ -23,7 +24,7 @@ class FakeMcpClient:
         *,
         health_response: Mapping[str, Any] | None = None,
         health_error: BaseException | None = None,
-        chart_state: Mapping[str, Any] | None = None,
+        chart_states: Sequence[Mapping[str, Any]] | Mapping[str, Any] | None = None,
         chart_error: BaseException | None = None,
         ohlcv_response: Mapping[str, Any] | None = None,
         ohlcv_error: BaseException | None = None,
@@ -31,7 +32,16 @@ class FakeMcpClient:
     ) -> None:
         self._health_response = health_response
         self._health_error = health_error
-        self._chart_state = chart_state
+        # Normalize chart_states into an ordered sequence.  A single mapping is
+        # wrapped so the same client can be reused across tests that expect one
+        # or more chart_get_state responses.
+        if chart_states is None:
+            self._chart_states: list[Mapping[str, Any]] = []
+        elif isinstance(chart_states, Mapping):
+            self._chart_states = [chart_states]
+        else:
+            self._chart_states = list(chart_states)
+        self._chart_index = 0
         self._chart_error = chart_error
         self._ohlcv_response = ohlcv_response
         self._ohlcv_error = ohlcv_error
@@ -80,9 +90,15 @@ class FakeMcpClient:
         if name == "chart_get_state":
             if self._chart_error is not None:
                 raise self._chart_error
-            if self._chart_state is None:
+            if not self._chart_states:
                 raise AssertionError("chart_get_state response not programmed")
-            return dict(self._chart_state)
+            if self._chart_index >= len(self._chart_states):
+                # Repeat the last programmed state for any additional reads.
+                state = self._chart_states[-1]
+            else:
+                state = self._chart_states[self._chart_index]
+                self._chart_index += 1
+            return dict(state)
 
         if name == "data_get_ohlcv":
             if self._ohlcv_error is not None:

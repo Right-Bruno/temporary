@@ -13,6 +13,7 @@ Protocol.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -36,7 +37,11 @@ from trading_automation.data.market_data.contract import (
 )
 from trading_automation.data.market_data.validate import validate_candles
 from trading_automation.domain.candles import Candle, as_decimal
-from trading_automation.domain.timezones import to_epoch_microseconds, to_new_york
+from trading_automation.domain.timezones import (
+    from_epoch_microseconds,
+    to_epoch_microseconds,
+    to_new_york,
+)
 
 _ADAPTER_NAME = "tradingview"
 _ADAPTER_VERSION = "1"
@@ -90,25 +95,33 @@ def _parse_timestamp(value: Any) -> datetime:
 
     The production timestamp unit is not verified against a real response.
     This function uses a non-overlapping magnitude rule: values in the
-    seconds range are treated as seconds; values in the milliseconds range
-    are treated as milliseconds.  Values outside both ranges, or ambiguous
+    seconds range (2000-01-01 to 2100-01-01 UTC) are treated as Unix seconds;
+    values in the milliseconds range (the same span multiplied by 1,000) are
+    treated as Unix milliseconds.  Values outside both ranges, or ambiguous
     malformed values, are rejected.
+
+    Booleans, NaN, and infinity are rejected.  Fractional values are preserved
+    exactly: fractional seconds become microseconds, and fractional
+    milliseconds become sub-millisecond microseconds.  No value is silently
+    truncated.
     """
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise ValueError("timestamp must be numeric")
 
+    # Reject NaN and infinity explicitly.
+    if value != value or value in (float("inf"), float("-inf")):
+        raise ValueError("timestamp must be finite")
+
     if _EPOCH_SECONDS_MIN <= value <= _EPOCH_SECONDS_MAX:
-        epoch_us = int(value) * 1_000_000
+        # Unix seconds: preserve fractional seconds as microseconds.
+        epoch_us = int(value * 1_000_000)
     elif _EPOCH_MILLIS_MIN <= value <= _EPOCH_MILLIS_MAX:
-        epoch_us = int(value) * 1_000
+        # Unix milliseconds: preserve fractional milliseconds as microseconds.
+        epoch_us = int(value * 1_000)
     else:
         raise ValueError("timestamp is outside the accepted seconds/milliseconds range")
 
-    try:
-        utc_instant = datetime.fromtimestamp(epoch_us / 1_000_000, tz=timezone.utc)
-    except (OverflowError, OSError, ValueError) as exc:
-        raise ValueError(f"invalid timestamp value: {exc}") from exc
-
+    utc_instant = from_epoch_microseconds(epoch_us)
     return to_new_york(utc_instant)
 
 
@@ -159,7 +172,7 @@ class TvMarketDataSource:
         self._instrument = instrument
         self._binding = binding
         self._client = client
-        self._now = _resolve_now(now)
+        self._now: datetime | None = None if now is None else _resolve_now(now)
 
     @property
     def instrument(self) -> InstrumentRef:
@@ -223,6 +236,11 @@ class TvMarketDataSource:
                 code="MARKET_DATA_VALIDATION",
             )
 
+        # Resolve the current UTC time for this request (not frozen at
+        # construction).  The same instant is used for future-candle
+        # validation and CandleSeries.fetched_at_utc.
+        fetched_at = _resolve_now(self._now)
+
         # 1. Source availability check.
         try:
             self.health()
@@ -240,12 +258,22 @@ class TvMarketDataSource:
         self._verify_chart_state(chart_state, request.timeframe)
 
         # 4. OHLCV retrieval (only after chart verification passes).
-        bars_response = self._request_ohlcv(count)
+        bars_response, ohlcv_raw_bytes = self._request_ohlcv(count)
 
-        # 5. Normalize bars into candles.
+        # 5. Post-fetch chart-state verification: confirm the chart symbol and
+        #    resolution have not changed while OHLCV data was being read.
+        post_chart_state = self._request_chart_state()
+        self._verify_chart_state(post_chart_state, request.timeframe)
+
+        # 6. Normalize bars into candles.
         candles = self._normalize_bars(bars_response, request.timeframe)
 
-        # 6. Apply evidence completion (incoming candles start incomplete).
+        # 7. Compute the in-memory SHA-256 digest and byte count of the raw
+        #    MCP OHLCV payload.  The payload is not written to disk or SQLite.
+        raw_payload_sha256 = hashlib.sha256(ohlcv_raw_bytes).hexdigest()
+        raw_payload_bytes = len(ohlcv_raw_bytes)
+
+        # 8. Apply evidence completion (incoming candles start incomplete).
         completed = apply_evidence_completion(candles)
 
         # 7. Validate the final series against the binding.
@@ -254,11 +282,10 @@ class TvMarketDataSource:
             instrument=self._instrument,
             binding=self._binding,
             timeframe=request.timeframe,
-            now=self._now,
+            now=fetched_at,
         )
 
         # 8. Return provider-independent series.
-        fetched_at = self._now
         metadata = AdapterMetadata(
             adapter_name=_ADAPTER_NAME,
             adapter_version=_ADAPTER_VERSION,
@@ -276,14 +303,21 @@ class TvMarketDataSource:
             candles=validated,
             fetched_at_utc=fetched_at,
             metadata=metadata,
+            raw_payload_sha256=raw_payload_sha256,
+            raw_payload_bytes=raw_payload_bytes,
         )
 
     # ------------------------------------------------------------------ internals
 
     def _parse_tool_result(
         self, result: Mapping[str, Any], tool_name: str
-    ) -> Mapping[str, Any]:
+    ) -> tuple[Mapping[str, Any], bytes]:
         """Parse the JSON text inside an MCP tool result's content array.
+
+        Returns the parsed payload and the raw UTF-8 bytes of the MCP text
+        payload (the ``content[].text`` string).  For test fakes that return a
+        direct mapping rather than an MCP-wrapped result, the raw bytes are the
+        canonical JSON encoding of that mapping.
 
         The real :class:`McpStdioClient` returns the raw JSON-RPC result, which
         wraps the payload in ``content[].text``.  This helper extracts and
@@ -298,7 +332,12 @@ class TvMarketDataSource:
 
         # A test fake may return the payload directly.
         if "symbol" in result or "bars" in result or "success" in result:
-            return result
+            payload = result
+            raw_text = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode(
+                "utf-8"
+            )
+            self._check_tool_error(tool_name, payload)
+            return payload, raw_text
 
         content = result.get("content")
         if not isinstance(content, list) or not content:
@@ -325,11 +364,50 @@ class TvMarketDataSource:
             raise SourcePreconditionError(
                 f"{tool_name} payload is not a JSON object",
             )
-        return payload
+
+        # Explicitly inspect MCP isError.  Preserve the underlying error
+        # information instead of converting a tool failure into a misleading
+        # missing-field error.
+        if result.get("isError") is True:
+            error = payload.get("error") if isinstance(payload, Mapping) else None
+            message = str(error) if error else f"{tool_name} reported failure"
+            if tool_name == "data_get_ohlcv":
+                raise SourceUnavailableError(
+                    f"OHLCV retrieval failed: {message}",
+                )
+            raise SourcePreconditionError(
+                f"{tool_name} failed: {message}",
+            )
+
+        self._check_tool_error(tool_name, payload)
+
+        return payload, text.encode("utf-8")
+
+    @staticmethod
+    def _check_tool_error(tool_name: str, payload: Mapping[str, Any]) -> None:
+        """Inspect MCP tool error fields and raise the appropriate error.
+
+        Preserves the underlying error information instead of converting a
+        tool failure into a misleading missing-field error.
+        """
+        if payload.get("success") is False:
+            error = payload.get("error")
+            message = str(error) if error else f"{tool_name} reported failure"
+            if tool_name == "data_get_ohlcv":
+                raise SourceUnavailableError(
+                    f"OHLCV retrieval failed: {message}",
+                )
+            raise SourcePreconditionError(
+                f"{tool_name} failed: {message}",
+            )
+        if payload.get("success") is not True:
+            raise SourcePreconditionError(
+                f"{tool_name} payload has no boolean success field",
+            )
 
     def _request_chart_state(self) -> Mapping[str, Any]:
         result = self._client.call_tool("chart_get_state", {})
-        return self._parse_tool_result(result, "chart_get_state")
+        return self._parse_tool_result(result, "chart_get_state")[0]
 
     def _verify_chart_state(
         self,
@@ -364,7 +442,7 @@ class TvMarketDataSource:
                 f"requested timeframe {requested_timeframe.value}",
             )
 
-    def _request_ohlcv(self, count: int) -> Mapping[str, Any]:
+    def _request_ohlcv(self, count: int) -> tuple[Mapping[str, Any], bytes]:
         result = self._client.call_tool(
             "data_get_ohlcv",
             {"count": count},
