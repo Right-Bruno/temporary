@@ -1,0 +1,59 @@
+# Canonical instrument registry for Phase 1.
+#
+# Canonical identity is provider-independent. Provider-native tickers and the
+# exact candle provenance label belong to each binding, never to the canonical
+# id. A binding may only be marked VERIFIED when it also records verified_at
+# (timezone-aware ISO-8601) and verification_reference evidence.
+#
+# D-07 (manual ticker verification) is deferred, so no TradingView binding is
+# marked VERIFIED. The two FOREXCOM bindings below are CANDIDATE mappings named
+# by the approved STS analytical-feed policy, not verified live feeds.
+
+schema_version = 1
+
+[[instruments]]
+canonical_id = "EURUSD"
+asset_class = "forex"
+display_name = "Euro / US Dollar"
+
+[[instruments.bindings]]
+adapter = "tradingview"
+source_symbol = "FOREXCOM:EURUSD"
+source_label = "tradingview-mcp:FOREXCOM"
+status = "CANDIDATE"
+
+[[instruments]]
+canonical_id = "GBPUSD"
+asset_class = "forex"
+display_name = "British Pound / US Dollar"
+
+[[instruments.bindings]]
+adapter = "tradingview"
+source_symbol = "FOREXCOM:GBPUSD"
+source_label = "tradingview-mcp:FOREXCOM"
+status = "CANDIDATE"
+
+[[instruments]]
+canonical_id = "XAUUSD"
+asset_class = "metals"
+display_name = "Gold / US Dollar"
+
+[[instruments]]
+canonical_id = "XAGUSD"
+asset_class = "metals"
+display_name = "Silver / US Dollar"
+
+[[instruments]]
+canonical_id = "XCUUSD"
+asset_class = "metals"
+display_name = "Copper / US Dollar"
+
+[[instruments]]
+canonical_id = "NASUSD"
+asset_class = "indices"
+display_name = "Nasdaq / US Dollar"
+
+[[instruments]]
+canonical_id = "SP500USD"
+asset_class = "indices"
+display_name = "S&P 500 / US Dollar"

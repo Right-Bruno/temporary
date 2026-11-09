@@ -1,38 +1,4 @@
-﻿=== git rev-parse --show-toplevel ===
-C:/Users/user/Desktop/WorkPlace/Business/TradingAutomationStarter
-
-=== git branch --show-current ===
-master
-
-=== git rev-parse HEAD ===
-87b71d541af17c0e7ef0bc9d8bd3f7081f628f59
-
-=== git status --short ===
- M src/trading_automation/cli.py
-?? .opencode/
-?? config/instruments.toml
-?? config/mcp-tools.json
-?? docs/MARKET_DATA_INTERFACE.md
-?? docs/MCP_INTEGRATION.md
-?? opencode.jsonc
-?? src/trading_automation/data/market_data/
-?? src/trading_automation/mcp/
-?? tests/fixtures/
-?? tests/test_cli_mcp.py
-?? tests/test_csv_market_data_adapter.py
-?? tests/test_market_data_completion.py
-?? tests/test_market_data_contract.py
-?? tests/test_market_data_validate.py
-?? tests/test_mcp_check.py
-?? tests/test_mcp_client.py
-?? tests/test_mcp_manifest.py
-?? tests/test_mcp_policy.py
-?? tests/test_opencode_effective_permissions.py
-?? tests/test_real_mcp_handshake.py
-?? tests/test_symbol_registry.py
-?? tests/test_tv_market_data_adapter.py
-
-=== git status --porcelain=v1 --untracked-files=all ===
+﻿=== GIT STATUS --SHORT --UNTRACKED-FILES=ALL ===
  M src/trading_automation/cli.py
 ?? .opencode/agents/tv-mcp-diagnostic.md
 ?? config/instruments.toml
@@ -70,10 +36,13 @@ master
 ?? tests/test_symbol_registry.py
 ?? tests/test_tv_market_data_adapter.py
 
-=== git diff --name-status ===
-M	src/trading_automation/cli.py
+=== CURRENT BRANCH ===
+master
 
-=== git diff -- src/trading_automation/cli.py ===
+=== CURRENT HEAD ===
+87b71d541af17c0e7ef0bc9d8bd3f7081f628f59
+
+=== GIT DIFF HEAD -- src/trading_automation/cli.py ===
 diff --git a/src/trading_automation/cli.py b/src/trading_automation/cli.py
 index d912141..228e116 100644
 --- a/src/trading_automation/cli.py
@@ -133,41 +102,6 @@ index d912141..228e116 100644
  
      if args.command == "status":
 
-=== git diff --check ===
-
-=== git ls-files --others --exclude-standard ===
-.opencode/agents/tv-mcp-diagnostic.md
-config/instruments.toml
-config/mcp-tools.json
-docs/MARKET_DATA_INTERFACE.md
-docs/MCP_INTEGRATION.md
-opencode.jsonc
-src/trading_automation/data/market_data/__init__.py
-src/trading_automation/data/market_data/completion.py
-src/trading_automation/data/market_data/contract.py
-src/trading_automation/data/market_data/csv_source.py
-src/trading_automation/data/market_data/symbols.py
-src/trading_automation/data/market_data/tv_source.py
-src/trading_automation/data/market_data/validate.py
-src/trading_automation/mcp/__init__.py
-src/trading_automation/mcp/check.py
-src/trading_automation/mcp/client.py
-src/trading_automation/mcp/config.py
-src/trading_automation/mcp/errors.py
-src/trading_automation/mcp/integrity.py
-src/trading_automation/mcp/manifest.py
-tests/fixtures/fake_mcp_server.py
-tests/fixtures/fake_tv_transport.py
-tests/test_cli_mcp.py
-tests/test_csv_market_data_adapter.py
-tests/test_market_data_completion.py
-tests/test_market_data_contract.py
-tests/test_market_data_validate.py
-tests/test_mcp_check.py
-tests/test_mcp_client.py
-tests/test_mcp_manifest.py
-tests/test_mcp_policy.py
-tests/test_opencode_effective_permissions.py
-tests/test_real_mcp_handshake.py
-tests/test_symbol_registry.py
-tests/test_tv_market_data_adapter.py
+=== CONFIRMATION ===
+No files were changed during this task. All files were copied read-only.
+No staging, commits, or pushes were made to the source repository.

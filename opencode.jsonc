@@ -1,0 +1,33 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  // Stage 2 pins the existing local TradingView MCP clone. The path is
+  // machine-specific and is verified against the commit in config/mcp-tools.json.
+  "mcp": {
+    "timeout": {
+      "startup": 30000,
+      "catalog": 30000,
+      "execution": 60000
+    },
+    "servers": {
+      "tradingview": {
+        "type": "local",
+        "command": ["node", "src/server.js"],
+        "cwd": "C:/Users/user/Desktop/WorkPlace/Coding/TradingView MCP/tradingview-mcp-github-publish",
+        "environment": {
+          "TV_CDP_HOST": "127.0.0.1",
+          "TV_CDP_PORT": "9222"
+        },
+        "codemode": false
+      }
+    }
+  },
+
+  // Deny every TradingView MCP tool by default. The temporary
+  // tv-mcp-diagnostic subagent appends exactly three approved allows.
+  "permissions": [
+    { "action": "tradingview_*", "resource": "*", "effect": "deny" },
+    { "action": "opencode_list_mcp_resources", "resource": "tradingview", "effect": "deny" },
+    { "action": "opencode_read_mcp_resource", "resource": "tradingview:*", "effect": "deny" }
+  ]
+}

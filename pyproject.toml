@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "trading-automation"
+version = "0.1.0"
+description = "Deterministic implementation foundation for the approved STS V1.0 strategy"
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+license = { text = "Proprietary — strategy and project materials belong to the owner" }
+authors = [{ name = "Project owner" }]
+dependencies = ["tzdata>=2026.6"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
